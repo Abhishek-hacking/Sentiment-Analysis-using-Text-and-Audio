@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multimodal Batch Sentiment Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0d1117; }
+        .card { background-color: #161b22; border: 1px solid #30363d; }
+        #drop-zone { border: 2px dashed #30363d; }
+        .result-table th, .result-table td { padding: 0.75rem; border-bottom: 1px solid #30363d; }
+        .mode-toggle button.active { background-color: #58a6ff; color: #0d1117; font-weight: 700; }
+        .mode-toggle button:not(.active) { background-color: #30363d; }
+        #live-container.hidden, #batch-container.hidden { display: none; }
+        .recording-status { transition: opacity 0.3s; }
+        .pulse-red { animation: pulse-red 1.5s infinite; }
+        @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="p-4 min-h-screen flex items-center justify-center">
+
+    <div class="card w-full max-w-2xl p-6 rounded-xl shadow-2xl space-y-6 text-white">
+        <h1 class="text-3xl font-bold text-center text-[#58a6ff]">Multimodal Sentiment Analyzer</h1>
+        <p class="text-sm text-gray-400 text-center">Analyze sentiment via instant microphone recording or batch file upload, powered by the Python ensemble backend.</p>
+
+        <div class="mode-toggle flex justify-center space-x-2 p-2 bg-[#161b22] rounded-lg">
+            <button id="live-mode-button" class="w-1/2 py-2 rounded-lg active transition-colors duration-200">Live Recording</button>
+            <button id="batch-mode-button" class="w-1/2 py-2 rounded-lg transition-colors duration-200">Batch File Upload</button>
+        </div>
+
+        <div id="live-container">
+            <h2 class="text-lg font-semibold text-gray-300 mb-4">Live Analysis (Microphone)</h2>
+            <div class="flex flex-col items-center space-y-4">
+                <div id="status-container" class="flex items-center space-x-2 recording-status opacity-0">
+                    <span class="h-3 w-3 rounded-full bg-red-500 pulse-red" id="status-dot"></span>
+                    <span class="text-red-400 font-semibold" id="recording-text">Recording...</span>
+                </div>
+
+                <button id="recordButton" 
+                        class="bg-[#238636] hover:bg-[#2ea043] text-white font-bold py-3 px-6 rounded-full transition-colors duration-200 shadow-md">
+                    🎙️ Start Recording
+                </button>
+                
+                <button id="stopButton" 
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-full transition-colors duration-200 hidden" disabled>
+                    ⏹️ Stop Recording
+                </button>
+            </div>
+
+            <canvas id="waveform-canvas" width="450" height="100" class="w-full rounded-lg mt-4"></canvas>
+
+            <div class="space-y-3 mt-4">
+                <h2 class="text-xl font-semibold border-t border-gray-700 pt-4 text-[#58a6ff]">Prediction Results</h2>
+                
+                <div class="p-3 bg-[#0d1117] rounded-lg">
+                    <div class="text-xs font-mono text-gray-500">Transcribed Text:</div>
+                    <p id="transcription-output" class="text-lg italic text-gray-200 min-h-[1.5rem]">Ready. Click Start Recording to begin.</p>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 card rounded-lg shadow-inner">
+                    <div class="text-sm text-gray-400">Final Sentiment:</div>
+                    <p id="sentiment-result" class="text-2xl font-extrabold text-gray-500">N/A</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="batch-container" class="hidden">
+            <h2 class="text-lg font-semibold text-gray-300 mb-4">Batch Analysis (File Upload)</h2>
+             <div class="space-y-4">
+                <div id="drop-zone" 
+                     class="flex flex-col items-center justify-center p-8 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-[#1f2937]">
+                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.888 7.552A4 4 0 0110 16v-2.25a.75.75 0 011.5 0v2.25a4 4 0 01-.888 7.552A4 4 0 0110 16v-2.25a.75.75 0 011.5 0V16m-7-2.25a.75.75 0 011.5 0V16m-7 0a4 4 0 004-4h14a4 4 0 004 4m-7-4a4 4 0 00-4 4"></path></svg>
+                    <p class="mt-2 text-sm text-gray-300">Drag & drop audio files here, or click to select.</p>
+                    <input type="file" id="batch-file-input" multiple accept="audio/wav, audio/mp3, audio/m4a" class="hidden">
+                </div>
+
+                <button id="analyze-button" 
+                        class="w-full bg-[#30363d] text-white font-bold py-3 px-6 rounded-lg opacity-50 cursor-not-allowed transition-colors duration-200"
+                        disabled>
+                    Start Batch Analysis (<span id="file-count">0</span> files)
+                </button>
+            </div>
+
+            <div class="space-y-3 mt-6">
+                <div id="results-container" class="min-h-[10rem] overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400 result-table hidden" id="results-table">
+                        <thead class="text-xs uppercase bg-[#1f2937] text-gray-400">
+                            <tr>
+                                <th scope="col" class="w-1/4">File Name</th>
+                                <th scope="col" class="w-2/5">Transcript</th>
+                                <th scope="col" class="w-1/6">Sentiment</th>
+                                <th scope="col" class="w-1/6">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body">
+                            </tbody>
+                    </table>
+                    <p id="placeholder-text" class="text-center py-8 text-gray-500">Upload audio files (.wav, .mp3) to see the sentiment analysis results here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const API_URL = '/predict_sentiment'; // Endpoint for Flask app.py
+        const SENTIMENT_MAP = {
+            "Negative": { label: "Negative", color: "#f85149" },
+            "Neutral": { label: "Neutral", color: "#ffe05b" },
+            "Positive": { label: "Positive", color: "#3fb950" }
+        };
+        const ERROR_RESULT = { label: "ERROR", color: "#f85149" };
+        
+        // --- Global State and Elements ---
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioContext;
+        let analyserNode;
+        let sourceNode;
+        let canvas, canvasCtx;
+        let audioFiles = [];
+        window.finalTranscript = ""; 
+
+        const elements = {
+            liveModeButton: document.getElementById('live-mode-button'),
+            batchModeButton: document.getElementById('batch-mode-button'),
+            liveContainer: document.getElementById('live-container'),
+            batchContainer: document.getElementById('batch-container'),
+            recordButton: document.getElementById('recordButton'),
+            stopButton: document.getElementById('stopButton'),
+            statusContainer: document.getElementById('status-container'),
+            transcriptionOutput: document.getElementById('transcription-output'),
+            sentimentResult: document.getElementById('sentiment-result'),
+            waveformCanvas: document.getElementById('waveform-canvas'),
+            batchFileInput: document.getElementById('batch-file-input'),
+            batchDropZone: document.getElementById('drop-zone'),
+            analyzeButton: document.getElementById('analyze-button'),
+            fileCountSpan: document.getElementById('file-count'),
+            resultsTable: document.getElementById('results-table'),
+            resultsBody: document.getElementById('results-table-body'),
+            placeholderText: document.getElementById('placeholder-text')
+        };
+
+        // --- Utility Functions ---
+        function initCanvas() {
+            canvas = elements.waveformCanvas;
+            canvasCtx = canvas.getContext('2d');
+            canvasCtx.fillStyle = '#010409';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function clearCanvas() {
+            canvasCtx.fillStyle = '#010409';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawWaveform() {
+            if (!analyserNode) return;
+            requestAnimationFrame(drawWaveform);
+            
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyserNode.getByteTimeDomainData(dataArray);
+
+            const width = canvas.width;
+            const height = canvas.height;
+
+            canvasCtx.fillStyle = 'rgba(1, 4, 9, 0.5)';
+            canvasCtx.fillRect(0, 0, width, height);
+            
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = '#58a6ff'; 
+
+            canvasCtx.beginPath();
+            const sliceWidth = width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * height / 2;
+
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            canvasCtx.lineTo(width, height / 2);
+            canvasCtx.stroke();
+        }
+
+        /**
+         * Converts WebM Blob to WAV Blob client-side using the AudioContext.
+         */
+        function blobToWav(audioBlob, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                audioContext.decodeAudioData(event.target.result, function(buffer) {
+                    const encodeWAV = (audioBuffer) => {
+                        const numChannels = audioBuffer.numberOfChannels;
+                        const sampleRate = audioBuffer.sampleRate;
+                        const bitsPerSample = 16;
+                        const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+                        
+                        const buffer = new ArrayBuffer(44 + audioBuffer.length * numChannels * 2);
+                        const view = new DataView(buffer);
+                        let offset = 0;
+                        
+                        // RIFF header
+                        view.setUint32(offset, 0x52494646, false); offset += 4; // "RIFF"
+                        view.setUint32(offset, 36 + audioBuffer.length * numChannels * 2, true); offset += 4;
+                        view.setUint32(offset, 0x57415645, false); offset += 4; // "WAVE"
+                        
+                        // FMT sub-chunk
+                        view.setUint32(offset, 0x666d7420, false); offset += 4;
+                        view.setUint32(offset, 16, true); offset += 4;
+                        view.setUint16(offset, 1, true); offset += 2; // Audio format (1=PCM)
+                        view.setUint16(offset, numChannels, true); offset += 2;
+                        view.setUint32(offset, sampleRate, true); offset += 4;
+                        view.setUint32(offset, byteRate, true); offset += 4;
+                        view.setUint16(offset, numChannels * bitsPerSample / 8, true); offset += 2; // Block align
+                        view.setUint16(offset, bitsPerSample, true); offset += 2; // Bits per sample
+                        
+                        // DATA sub-chunk
+                        view.setUint32(offset, 0x64617461, false); offset += 4;
+                        view.setUint32(offset, audioBuffer.length * numChannels * 2, true); offset += 4;
+                        
+                        // Write PCM data
+                        const floatTo16BitPCM = (output, offset, input) => {
+                            for (let i = 0; i < input.length; i++, offset += 2) {
+                                let s = Math.max(-1, Math.min(1, input[i]));
+                                output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                            }
+                        };
+                        
+                        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+                            floatTo16BitPCM(view, offset, audioBuffer.getChannelData(i));
+                        }
+                        return buffer;
+                    };
+
+                    const wavData = encodeWAV(buffer);
+                    const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+                    callback(wavBlob);
+                });
+            };
+            reader.readAsArrayBuffer(audioBlob);
+        }
+        
+        /**
+         * Sends audio data (Blob or File) to the Python backend for processing.
+         */
+        async function sendAudioForPrediction(audioFile, fileName) {
+            const formData = new FormData();
+            formData.append('audio_file', audioFile, fileName);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorJson = await response.json();
+                    throw new Error(errorJson.details || 'Prediction failed on the server.');
+                }
+
+                return await response.json(); // Returns { transcript, sentiment, status }
+
+            } catch (error) {
+                console.error('API Error:', error);
+                throw new Error(`Server processing error: ${error.message}`);
+            }
+        }
+
+
+        // --- MODE SWITCHING ---
+
+        function switchMode(mode) {
+            if (mode === 'live') {
+                elements.liveContainer.classList.remove('hidden');
+                elements.batchContainer.classList.add('hidden');
+                elements.liveModeButton.classList.add('active');
+                elements.batchModeButton.classList.remove('active');
+            } else {
+                elements.liveContainer.classList.add('hidden');
+                elements.batchContainer.classList.remove('hidden');
+                elements.liveModeButton.classList.remove('active');
+                elements.batchModeButton.classList.add('active');
+            }
+        }
+        
+        elements.liveModeButton.onclick = () => switchMode('live');
+        elements.batchModeButton.onclick = () => switchMode('batch');
+
+
+        // --- LIVE MODE LOGIC ---
+        
+        elements.recordButton.onclick = async () => {
+            // Reset UI
+            window.finalTranscript = ""; 
+            clearCanvas();
+            elements.transcriptionOutput.textContent = 'Requesting microphone...';
+            elements.sentimentResult.textContent = 'N/A';
+            elements.sentimentResult.style.color = 'rgb(156 163 175)'; 
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); 
+                audioChunks = [];
+
+                // Setup visualization
+                sourceNode = audioContext.createMediaStreamSource(stream);
+                analyserNode = audioContext.createAnalyser();
+                sourceNode.connect(analyserNode);
+                drawWaveform();
+                
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    elements.statusContainer.classList.add('opacity-0');
+                    elements.recordButton.classList.remove('hidden');
+                    elements.stopButton.classList.add('hidden');
+                    
+                    const webmBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    stream.getTracks().forEach(track => track.stop()); 
+
+                    elements.transcriptionOutput.textContent = 'Converting to WAV...';
+                    elements.sentimentResult.textContent = 'Processing...';
+                    elements.sentimentResult.style.color = SENTIMENT_MAP["Neutral"].color;
+
+                    // --- CRITICAL FIX: Convert WebM to WAV Client-side ---
+                    blobToWav(webmBlob, async (wavBlob) => {
+                        try {
+                            const result = await sendAudioForPrediction(wavBlob, 'live_recording.wav');
+                            
+                            const finalResult = SENTIMENT_MAP[result.sentiment] || ERROR_RESULT;
+                            elements.transcriptionOutput.textContent = result.transcript;
+                            elements.sentimentResult.textContent = finalResult.label;
+                            elements.sentimentResult.style.color = finalResult.color;
+
+                        } catch (e) {
+                             // Display detailed error from backend
+                             elements.transcriptionOutput.textContent = `Backend Error: ${e.message}`;
+                             elements.sentimentResult.textContent = 'Failed';
+                             elements.sentimentResult.style.color = ERROR_RESULT.color;
+                        }
+                    });
+                };
+
+                // Start Recording
+                mediaRecorder.start();
+
+                elements.statusContainer.classList.remove('opacity-0');
+                elements.recordButton.classList.add('hidden');
+                elements.stopButton.classList.remove('hidden');
+                elements.stopButton.disabled = false;
+                elements.sentimentResult.textContent = 'Recording...';
+                elements.transcriptionOutput.textContent = 'Listening...';
+
+            } catch (err) {
+                elements.transcriptionOutput.textContent = `Error accessing microphone: ${err.message}. Check browser permissions.`;
+                elements.sentimentResult.textContent = 'Error';
+                elements.sentimentResult.style.color = ERROR_RESULT.color;
+                elements.statusContainer.classList.add('opacity-0');
+            }
+        };
+
+        elements.stopButton.onclick = () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                elements.stopButton.disabled = true;
+            }
+        };
+
+
+        // --- BATCH MODE LOGIC ---
+
+        function updateFileList(files) {
+            audioFiles = [...files].filter(f => f.type.startsWith('audio/') || f.name.endsWith('.mp3') || f.name.endsWith('.wav') || f.name.endsWith('.m4a'));
+            elements.fileCountSpan.textContent = audioFiles.length;
+
+            const isActive = audioFiles.length > 0;
+            elements.analyzeButton.disabled = !isActive;
+            elements.analyzeButton.classList.toggle('opacity-50', !isActive);
+            elements.analyzeButton.classList.toggle('cursor-not-allowed', !isActive);
+            elements.analyzeButton.classList.toggle('bg-[#58a6ff]', isActive);
+            elements.analyzeButton.classList.toggle('hover:bg-[#4396e9]', isActive);
+            elements.placeholderText.classList.toggle('hidden', isActive);
+
+            elements.resultsTable.classList.add('hidden');
+            elements.resultsBody.innerHTML = '';
+        }
+
+        // Batch Input event handlers
+        elements.batchDropZone.onclick = () => elements.batchFileInput.click();
+        elements.batchFileInput.onchange = (e) => updateFileList(e.target.files);
+        elements.batchDropZone.ondragover = (e) => { e.preventDefault(); elements.batchDropZone.classList.add('bg-[#1f2937]', 'border-[#58a6ff]'); };
+        elements.batchDropZone.ondragleave = () => { elements.batchDropZone.classList.remove('bg-[#1f2937]', 'border-[#58a6ff]'); };
+        elements.batchDropZone.ondrop = (e) => { e.preventDefault(); elements.batchDropZone.classList.remove('bg-[#1f2937]', 'border-[#58a6ff]'); updateFileList(e.dataTransfer.files); };
+
+        // Main Batch Analysis Function
+        elements.analyzeButton.onclick = async () => {
+            if (audioFiles.length === 0) return;
+            
+            elements.resultsTable.classList.remove('hidden');
+            elements.resultsBody.innerHTML = '';
+            elements.analyzeButton.disabled = true;
+            
+            for (let i = 0; i < audioFiles.length; i++) {
+                const file = audioFiles[i];
+                
+                // 1. Setup Row and Status
+                const row = elements.resultsBody.insertRow();
+                const nameCell = row.insertCell(); 
+                const transcriptCell = row.insertCell(); 
+                const sentimentCell = row.insertCell(); 
+                const statusCell = row.insertCell(); 
+
+                nameCell.className = "text-gray-200";
+                nameCell.textContent = file.name;
+                
+                transcriptCell.className = "text-gray-400 italic";
+                sentimentCell.className = "font-bold";
+                statusCell.className = "text-yellow-500";
+                
+                transcriptCell.textContent = 'Queued...';
+                sentimentCell.textContent = 'Pending';
+                statusCell.textContent = 'Sending...';
+                
+                elements.analyzeButton.textContent = `Processing ${i + 1} of ${audioFiles.length}...`;
+
+                try {
+                    // 2. Send to Python Backend
+                    statusCell.textContent = 'Transcribing...';
+                    
+                    // NOTE: Batch mode sends the file as-is. Python must handle decoding.
+                    const result = await sendAudioForPrediction(file, file.name);
+
+                    // 3. Display Results
+                    const finalResult = SENTIMENT_MAP[result.sentiment] || ERROR_RESULT;
+                    transcriptCell.textContent = result.transcript;
+                    sentimentCell.textContent = finalResult.label;
+                    sentimentCell.style.color = finalResult.color;
+                    statusCell.textContent = result.status;
+                    statusCell.style.color = finalResult.color; 
+
+                } catch (error) {
+                    // Handle server errors and display in the table
+                    const errorDetail = error.message.includes('details:') ? error.message.split('details:')[1].trim() : error.message;
+                    transcriptCell.textContent = errorDetail;
+                    sentimentCell.textContent = 'FAILED';
+                    sentimentCell.style.color = ERROR_RESULT.color;
+                    statusCell.textContent = 'Backend Error';
+                    statusCell.style.color = ERROR_RESULT.color;
+                }
+            }
+
+            elements.analyzeButton.disabled = false;
+            elements.analyzeButton.textContent = `Analysis Complete (${audioFiles.length} files)`;
+            elements.analyzeButton.classList.remove('bg-[#58a6ff]', 'hover:bg-[#4396e9]');
+            elements.analyzeButton.classList.add('bg-gray-600', 'hover:bg-gray-700');
+        };
+
+        // --- Initialization ---
+        window.onload = () => {
+            initCanvas();
+            switchMode('live'); // Default to Live Mode
+        };
+    </script>
+</body>
+</html>
