@@ -1,0 +1,10 @@
+flask
+flask-cors
+torch
+numpy
+librosa
+Pillow
+openai-whisper
+transformers
+scikit-learn
+werkzeug
