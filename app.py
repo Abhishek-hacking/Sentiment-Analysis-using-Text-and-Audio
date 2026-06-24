@@ -16,7 +16,8 @@ from scipy.io.wavfile import read as read_wav
 import time
 
 # --- CONFIGURATION ---
-PORT = 8000 
+PORT = int(os.environ.get("PORT", 8000))
+
 # CRITICAL FIX: Use the dedicated 3-Class RoBERTa model (Trained on Twitter data)
 SENTIMENT_MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment" 
 
