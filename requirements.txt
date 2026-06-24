@@ -12,3 +12,4 @@ gunicorn
 SpeechRecognition
 pydub
 scipy
+requests
