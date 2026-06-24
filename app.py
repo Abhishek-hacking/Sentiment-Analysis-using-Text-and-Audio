@@ -1,4 +1,3 @@
-```python
 import os
 import speech_recognition as sr
 from flask import Flask, request, jsonify, render_template
@@ -190,4 +189,3 @@ if __name__ == "__main__":
         port=PORT,
         debug=False
     )
-```
