@@ -1,14 +1,11 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-import torch
-import torch.nn as nn
-import numpy as np
 import speech_recognition as sr
 from pydub import AudioSegment 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from transformers import pipeline
 import sys
+import requests
 import tempfile
 import webbrowser
 import threading
@@ -30,14 +27,6 @@ r = sr.Recognizer()
 try:
     print("Loading models and encoders (This may take a moment)...")
     
-    # Load 3-Class Sentiment Pipeline
-    sentiment_pipeline = pipeline(
-        "sentiment-analysis",
-        model=SENTIMENT_MODEL_NAME
-    )
-    
-    print("Transformer models loaded successfully.")
-
 except Exception as e:
     print(f"FATAL ERROR loading models: {e}", file=sys.stderr)
     sys.exit(1)
@@ -89,21 +78,32 @@ def handle_prediction():
         if 'unintelligible' in transcript:
              raise Exception("Speech was not clear enough for transcription.")
 
-        # 2. Prediction using Pre-trained 3-Class RoBERTa Model
-        prediction_results = sentiment_pipeline(transcript)[0]
-        
-        # RoBERTa output labels: LABEL_0 (Negative), LABEL_1 (Neutral), LABEL_2 (Positive)
-        label = prediction_results['label']
-        
-        # --- CRITICAL FINAL FIX: Map RoBERTa's native 3-class output ---
-        if label == 'LABEL_1':
-            final_sentiment = 'Neutral' # Correctly assigns the middle label
-        elif label == 'LABEL_2':
-            final_sentiment = 'Positive'
-        elif label == 'LABEL_0':
-            final_sentiment = 'Negative'
-        else:
-            final_sentiment = 'Neutral' # Fallback for unexpected label
+# Simple sentiment analysis using Hugging Face API
+
+HF_TOKEN = os.environ.get("HF_TOKEN")
+
+headers = {
+    "Authorization": f"Bearer {HF_TOKEN}"
+}
+
+API_URL = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+
+response = requests.post(
+    API_URL,
+    headers=headers,
+    json={"inputs": transcript}
+)
+
+result = response.json()
+
+label = result[0][0]["label"]
+
+if label == "POSITIVE":
+    final_sentiment = "Positive"
+elif label == "NEGATIVE":
+    final_sentiment = "Negative"
+else:
+    final_sentiment = "Neutral"
         
         # --- Clean up and return ---
         return jsonify({
