@@ -10,3 +10,5 @@ scikit-learn
 werkzeug
 gunicorn
 SpeechRecognition
+pydub
+scipy
