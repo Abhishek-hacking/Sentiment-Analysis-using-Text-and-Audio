@@ -19,7 +19,7 @@ import time
 PORT = int(os.environ.get("PORT", 8000))
 
 # CRITICAL FIX: Use the dedicated 3-Class RoBERTa model (Trained on Twitter data)
-SENTIMENT_MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment" 
+SENTIMENT_MODEL_NAME = "distilbert-base-uncased-finetuned-sst-2-english"
 
 # --- APP SETUP ---
 app = Flask(__name__, template_folder='templates')
