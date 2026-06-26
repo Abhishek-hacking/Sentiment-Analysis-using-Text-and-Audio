@@ -59,32 +59,44 @@ def run_wav_asr(audio_path):
 # --------------------------------------------------
 
 def analyze_sentiment(text):
+    print("HF_TOKEN exists:", HF_TOKEN is not None)
+
     payload = {
         "inputs": text
     }
 
-    response = requests.post(
-        API_URL,
-        headers=headers,
-        json=payload,
-        timeout=30
-    )
+    try:
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
 
-    result = response.json()
+        print("Status Code:", response.status_code)
+        print("Response:", response.text)
 
-    if isinstance(result, dict) and result.get("error"):
-        raise Exception(result["error"])
+        response.raise_for_status()
 
-    label = result[0][0]["label"]
+        result = response.json()
 
-    if label == "POSITIVE":
-        return "Positive"
+        print(result)
 
-    elif label == "NEGATIVE":
-        return "Negative"
+        if isinstance(result, dict) and result.get("error"):
+            raise Exception(result["error"])
 
-    return "Neutral"
+        label = result[0]["label"]
 
+        if label == "POSITIVE":
+            return "Positive"
+        elif label == "NEGATIVE":
+            return "Negative"
+        else:
+            return "Neutral"
+
+    except Exception as e:
+        print("HF ERROR:", str(e))
+        raise
 
 # --------------------------------------------------
 # ROUTES
