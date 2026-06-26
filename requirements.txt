@@ -3,3 +3,4 @@ flask-cors
 SpeechRecognition
 requests
 gunicorn
+huggingface_hub
