@@ -189,6 +189,35 @@ def handle_prediction():
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
 
+@app.route("/test-google")
+def test_google():
+    try:
+        r = requests.get("https://www.google.com", timeout=10)
+        return {
+            "status": r.status_code,
+            "message": "Google reachable"
+        }
+    except Exception as e:
+        return {
+            "error": str(e)
+        }, 500
+
+
+@app.route("/test-hf")
+def test_hf():
+    try:
+        r = requests.get(
+            "https://api-inference.huggingface.co",
+            timeout=10
+        )
+        return {
+            "status": r.status_code,
+            "text": r.text[:200]
+        }
+    except Exception as e:
+        return {
+            "error": str(e)
+        }, 500
 
 # --------------------------------------------------
 # START SERVER
