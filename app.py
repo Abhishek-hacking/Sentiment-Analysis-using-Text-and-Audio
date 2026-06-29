@@ -78,10 +78,6 @@ def analyze_sentiment(text):
         return "Negative"
     return "Neutral"
 
-    except Exception as e:
-        print("HF ERROR:", str(e))
-        raise
-
 # --------------------------------------------------
 # ROUTES
 # --------------------------------------------------
