@@ -22,7 +22,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 API_URL = (
     "https://api-inference.huggingface.co/models/"
-    "distilbert-base-uncased-finetuned-sst-2-english"
+    "cardiffnlp/twitter-roberta-base-sentiment-latest"
 )
 
 headers = {
