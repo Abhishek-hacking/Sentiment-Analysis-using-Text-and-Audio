@@ -1,6 +1,5 @@
-flask
-flask-cors
+Flask
+Flask-Cors
 SpeechRecognition
-requests
 gunicorn
-huggingface_hub
+vaderSentiment
