@@ -6,6 +6,12 @@ import requests
 import tempfile
 import sys
 
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"]
+)
+
 # --------------------------------------------------
 # CONFIGURATION
 # --------------------------------------------------
@@ -59,40 +65,18 @@ def run_wav_asr(audio_path):
 # --------------------------------------------------
 
 def analyze_sentiment(text):
-    print("HF_TOKEN exists:", HF_TOKEN is not None)
+    result = client.text_classification(
+        text,
+        model="distilbert-base-uncased-finetuned-sst-2-english"
+    )
 
-    payload = {
-        "inputs": text
-    }
+    label = result[0]["label"]
 
-    try:
-        response = requests.post(
-            API_URL,
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-
-        print("Status Code:", response.status_code)
-        print("Response:", response.text)
-
-        response.raise_for_status()
-
-        result = response.json()
-
-        print(result)
-
-        if isinstance(result, dict) and result.get("error"):
-            raise Exception(result["error"])
-
-        label = result[0]["label"]
-
-        if label == "POSITIVE":
-            return "Positive"
-        elif label == "NEGATIVE":
-            return "Negative"
-        else:
-            return "Neutral"
+    if label == "POSITIVE":
+        return "Positive"
+    elif label == "NEGATIVE":
+        return "Negative"
+    return "Neutral"
 
     except Exception as e:
         print("HF ERROR:", str(e))
@@ -218,6 +202,21 @@ def test_hf():
         return {
             "error": str(e)
         }, 500
+
+
+@app.route("/test-dns")
+def test_dns():
+    import socket
+
+    try:
+        return {
+            "google": socket.gethostbyname("google.com"),
+            "hf": socket.gethostbyname("api-inference.huggingface.co")
+        }
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
 
 # --------------------------------------------------
 # START SERVER
